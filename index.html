@@ -7,11 +7,17 @@
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#14161f">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="st" data-s="splash">
         <canvas id="c"></canvas>
+        <div id="toast"><b></b><span></span></div>
         <section class="scr" id="splash">
             <h1>Last<br>Light</h1>
             <div class="ldbar"><i></i></div>
@@ -21,9 +27,9 @@
             <h1>Last<br>Light</h1>
             <p class="lead">Save your best score and rockets with an account, or just jump in as a guest.</p>
             <div class="rule"></div>
-            <button class="b p" id="gg" type="button">Play as guest <span>&rarr;</span></button>
-            <button class="b" id="gc" type="button">Create account <span>&rarr;</span></button>
-            <button class="b" id="gs" type="button">Sign in <span>&rarr;</span></button>
+            <button class="b p" id="gg" type="button">Play as guest <span>❯</span></button>
+            <button class="b" id="gc" type="button">Create account <span>❯</span></button>
+            <button class="b" id="gs" type="button">Sign in <span>❯</span></button>
             <button class="b" id="gog" type="button" style="background:#fff;border-color:#fff;color:#1f1f1f"><span style="display:flex;gap:2.4cqw;align-items:center"><b style="font:900 4.6cqw Arial,sans-serif;color:#4285f4">G</b>Continue with Google</span><span></span></button>
             <div id="gm" style="font-size:2.8cqw;line-height:1.5;color:var(--gold);min-height:5cqw"></div>
             <div class="foot"><span>Guest progress stays on this device</span></div>
@@ -31,13 +37,16 @@
         <section class="scr" id="menu">
             <h1>Last<br>Light</h1>
             <div class="rule"></div>
-            <button class="b p" id="go" type="button">Launch <span>&rarr;</span></button>
-            <button class="b" id="hg" type="button">Hangar <span>&rarr;</span></button>
+            <button class="b p" id="go" type="button">Launch <span>❯</span></button>
+            <button class="b" id="gdy" type="button">Daily challenge <span>❯</span></button>
+            <button class="b g" id="hg" type="button">Hangar <span>❯</span></button>
             <button class="b" id="mprog" type="button">Progress <span id="mcn">0 coins</span></button>
-            <button class="b" id="lb" type="button">Leaderboard <span>&rarr;</span></button>
-            <button class="b" id="ac" type="button"><span style="display:flex;align-items:center;gap:2.4cqw"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:1.4em;height:1.4em"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>Profile</span><span id="acs">Guest</span></button>
-            <button class="b" id="gd" type="button">Field guide <span>&rarr;</span></button>
-            <button class="b" id="mset" type="button">Settings <span>&rarr;</span></button>
+            <button class="b g" id="lb" type="button">Leaderboard <span>❯</span></button>
+            <button class="b" id="rlb" type="button">Rocket leaderboard <span>❯</span></button>
+            <button class="b g" id="ac" type="button"><span style="display:flex;align-items:center;gap:2.4cqw"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:1.4em;height:1.4em"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>Profile</span><span id="acs">Guest</span></button>
+            <button class="b" id="minb" type="button">Notifications <span id="minbn">❯</span></button>
+            <button class="b g" id="gd" type="button">Field guide <span>❯</span></button>
+            <button class="b" id="mset" type="button">Settings <span>❯</span></button>
             
             <div class="foot"><span>Best <b id="hi" style="color:var(--gold)">000000</b></span><span>4 skills &middot; B flare</span></div>
         </section>
@@ -57,19 +66,24 @@
             <button class="b" id="sb1" type="button">Vibration: on <span></span></button>
             <button class="b" id="sb2" type="button">Skill buttons: Center <span></span></button>
             <button class="b" id="sb3" type="button">Difficulty: Normal <span></span></button>
-            <button class="b" id="sb4" type="button">Show tutorial <span>&rarr;</span></button>
+            <button class="b" id="sb5" type="button">Screen shake: Full <span></span></button>
+            <button class="b" id="sb6" type="button">Effects: High <span></span></button>
+            <button class="b" id="sb7" type="button">Enemy bullets: Standard <span></span></button>
+            <button class="b" id="sb8" type="button">Anonymous stats: on <span></span></button>
+            <button class="b" id="sb4" type="button">Show tutorial <span>❯</span></button>
             <button class="b" id="sbk" type="button">&larr; Back <span></span></button></section>
         <section class="scr" id="prog" style="gap:1.6cqw"><div class="k">Progress <span id="pgc" style="float:right;color:var(--paper)"></span></div><h2 id="ph">Missions</h2>
             <div class="tabs"><button class="tb on" id="p1" type="button">Missions</button><button class="tb" id="p2" type="button">Upgrades</button><button class="tb" id="p3" type="button">Awards</button></div>
             <div id="pbody" style="display:flex;flex-direction:column;gap:2cqw;min-height:60cqw"></div>
             <button class="b" id="pbk" type="button">&larr; Back <span></span></button></section>
         <section class="scr" id="tut" style="gap:1.8cqw"><div class="k">How to fly</div><h2>Keep it lit</h2><div class="sk" id="tutb" style="display:flex;flex-direction:column;gap:1.4cqw"></div>
-            <button class="b p" id="tgo" type="button">Got it <span>&rarr;</span></button></section>
-        <section class="scr" id="prof" style="gap:1.8cqw"><div class="k">Pilot profile</div><div style="display:flex;align-items:center;gap:4cqw"><div id="pav" style="width:16cqw;height:16cqw;border-radius:50%;border:.5cqw solid var(--paper);background:var(--mute);color:var(--ink);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:60%;height:60%"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></div><h2 id="pn" style="font-size:9cqw;margin:0">Guest</h2></div>
+            <button class="b p" id="tgo" type="button">Got it <span>❯</span></button></section>
+        <section class="scr" id="prof" style="gap:1.8cqw"><div class="k">Pilot profile</div><div style="display:flex;align-items:center;gap:4cqw"><div id="pav" class="av" style="cursor:pointer"></div><h2 id="pn" style="font-size:9cqw;margin:0">Guest</h2></div>
             <div class="sk" id="pd" style="margin:0 0 1cqw"></div>
             <dl class="st" id="ps" style="gap:1cqw 4cqw;margin:0"></dl>
-            <button class="b p" id="pc" type="button">Create account <span>&rarr;</span></button>
-            <button class="b" id="pi" type="button">Sign in <span>&rarr;</span></button>
+            <button class="b" id="pe" type="button">Edit avatar &amp; border <span>❯</span></button>
+            <button class="b p" id="pc" type="button">Create account <span>❯</span></button>
+            <button class="b" id="pi" type="button">Sign in <span>❯</span></button>
             <button class="b" id="po" type="button">Sign out <span></span></button>
             <button class="b" id="pb" type="button">&larr; Back <span></span></button></section>
         <section class="scr" id="acct"><div class="k">Pilot account</div><h2 id="at">Sign in</h2>
@@ -79,21 +93,21 @@
                 <input class="in" id="ap" type="password" autocomplete="current-password" placeholder="Password">
                 <input class="in" id="ap2" type="password" autocomplete="new-password" placeholder="Confirm password" style="display:none">
                 <div id="am" style="font-size:2.8cqw;line-height:1.5;color:var(--gold);min-height:7cqw"></div>
-                <button class="b p" id="asub" type="button">Sign in <span>&rarr;</span></button>
+                <button class="b p" id="asub" type="button">Sign in <span>❯</span></button>
                 <button class="b" id="gog2" type="button" style="background:#fff;border-color:#fff;color:#1f1f1f"><span style="display:flex;gap:2.4cqw;align-items:center"><b style="font:900 4.6cqw Arial,sans-serif;color:#4285f4">G</b>Continue with Google</span><span></span></button></div>
             <div id="aout" style="display:none;flex-direction:column;gap:2cqw"><p class="lead" id="aw"></p><button class="b" id="aso" type="button">Sign out <span></span></button></div>
-            <p class="sk" style="margin:0;color:var(--mute)">Accounts are stored in the cloud so your progress follows you across devices. Passwords are handled by Supabase Auth and never stored in this game.</p>
             <button class="b" id="ab" type="button">&larr; Back <span></span></button></section>
         <section class="scr" id="pause"><div class="k">Holding position</div><h2>Paused</h2><div class="rule"></div>
-            <button class="b p" id="rs" type="button">Resume <span>&rarr;</span></button>
-            <button class="b" id="rsr" type="button">Restart run <span>&rarr;</span></button>
-            <button class="b" id="pst" type="button">Settings <span>&rarr;</span></button>
+            <button class="b p" id="rs" type="button">Resume <span>❯</span></button>
+            <button class="b" id="rsr" type="button">Restart run <span>❯</span></button>
+            <button class="b" id="pst" type="button">Settings <span>❯</span></button>
             <button class="b" id="mm" type="button">Main menu <span></span></button></section>
         <section class="scr" id="over"><div class="k">Transmission lost</div><h2>The convoy<br>goes dark</h2><div class="rule"></div>
             <dl class="st"><dt>Score</dt><dd id="o1"></dd><dt>Wave reached</dt><dd id="o2"></dd><dt>Best chain</dt><dd id="o3"></dd><dt>Best score</dt><dd id="o4"></dd></dl>
             <div id="on" style="font-size:2.6cqw;line-height:1.5;color:var(--gold);min-height:7cqw"></div>
-            <button class="b p" id="ag" type="button">Fly again <span>&rarr;</span></button>
-            <button class="b" id="lo" type="button">Leaderboard <span>&rarr;</span></button>
+            <button class="b p" id="ag" type="button">Fly again <span>❯</span></button>
+            <button class="b" id="shr" type="button">Share score <span>❯</span></button>
+            <button class="b" id="lo" type="button">Leaderboard <span>❯</span></button>
             <button class="b" id="m2" type="button">Main menu <span></span></button></section>
         <section class="scr" id="hangar" style="background:none;justify-content:flex-end;padding-bottom:0;overflow:visible"><div class="pn">
                 <div class="k">Hangar <span id="hcn" style="float:right;color:var(--paper)"></span></div><h2 id="sn2" style="font-size:8cqw;margin:0">Paper Kite</h2>
@@ -105,11 +119,41 @@
                 <button class="b" id="hb" type="button">&larr; Back <span></span></button></div></section>
         <section class="scr" id="exit"><div class="k">Signal ended</div><h2>The convoy<br>sleeps</h2><div class="rule"></div>
             <p class="lead">Your progress is saved on this device. You can close this tab or window now.</p>
-            <button class="b p" id="xb" type="button">Back to game <span>&rarr;</span></button></section>
+            <button class="b p" id="xb" type="button">Back to game <span>❯</span></button></section>
         <section class="scr" id="board" style="gap:1.6cqw"><div class="k">Leaderboard</div><h2>Hall of Lamps</h2>
-            <div class="tabs"><button class="tb on" id="tg" type="button">Global</button><button class="tb" id="tl" type="button">This device</button></div>
+            <div class="tabs"><button class="tb on" id="tg" type="button">Global</button><button class="tb" id="tl" type="button">This device</button><button class="tb" id="td" type="button">Daily</button></div>
             <div id="rows" style="min-height:68cqw"></div><div class="foot" id="bn" style="margin:0"></div>
             <button class="b" id="bb" type="button">&larr; Back <span></span></button></section>
+
+<section class="scr" id="rboard" style="gap:1.6cqw"><div class="k">Rocket leaderboard</div><h2>Hangar Ranks</h2>
+            <div id="rrows" style="min-height:68cqw"></div><div class="foot" id="rbn" style="margin:0"></div>
+            <button class="b" id="rbb" type="button">&larr; Back <span></span></button></section>
+
+<section class="scr" id="rdet" style="gap:1.6cqw">
+            <div class="k">Rocket ranking</div>
+            <div style="display:flex;align-items:center;gap:4cqw"><i class="rsw" id="rdsw" style="width:16cqw;height:16cqw"></i><div><h2 id="rdn" style="font-size:8cqw;margin:0">Rocket</h2><div class="sk" id="rdd" style="margin-top:1.4cqw"></div></div></div>
+            <div class="rr rhd" style="grid-template-columns:8cqw minmax(0,1fr) auto 5cqw"><span>Rank</span><span>Pilot</span><span>Score</span><span></span></div>
+            <div id="rdrows" style="flex:none"></div>
+            <div id="rdme"></div>
+            <button class="b" id="rdb" type="button">&larr; Back <span></span></button></section>
+
+<section class="scr" id="avs" style="gap:1.6cqw">
+            <div class="k">Pilot avatar</div>
+            <div style="display:flex;justify-content:center;padding:1cqw 0"><div id="avp" class="av"></div></div>
+            <div class="k">Avatar</div>
+            <div class="sks" id="avg"></div>
+            <button class="b" id="avu" type="button">Upload your own photo <span>❯</span></button>
+            <button class="b" id="avr" type="button">Remove photo <span></span></button>
+            <input type="file" id="avf" accept="image/*" hidden>
+            <div class="k">Border</div>
+            <div class="sks" id="bdg"></div>
+            <div class="sk" id="bdn" style="min-height:8cqw"></div>
+            <button class="b" id="avk" type="button">&larr; Back <span></span></button></section>
+
+<section class="scr" id="inb" style="gap:1.6cqw"><div class="k">Inbox</div><h2>Notifications</h2>
+            <div id="inbl" style="display:flex;flex-direction:column;gap:1.6cqw;flex:none"></div>
+            <button class="b" id="inbx" type="button">Clear all <span></span></button>
+            <button class="b" id="inbk" type="button">&larr; Back <span></span></button></section>
 
 <section class="scr" id="player" style="gap:1.8cqw">
     <div class="k">Pilot dossier · Global leaderboard</div>

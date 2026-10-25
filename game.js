@@ -1,8 +1,10 @@
 (() => {
     const $ = i => document.getElementById(i), st = $('st'), C = $('c'), g = C.getContext('2d'), W = 480;
     let H = 720;
-    C.width = W * 2;
-    C.height = H * 2;
+    let RES = 2;
+    const applyRes = () => { RES = set.low ? 1 : Math.min(2, window.devicePixelRatio || 1); C.width = W * RES; C.height = H * RES; };
+    C.width = W * RES;
+    C.height = H * RES;
     // ---- supabase ----
     const SB_URL = 'https://bbetyncuhyvbtunpablq.supabase.co', SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJiZXR5bmN1aHl2YnR1bnBhYmxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4NTM0ODUsImV4cCI6MjEwODQyOTQ4NX0.-UIZ-KDRz9T5b4A3Tk29vcV_I7ru6FmSFoU5akDGCdY';
     let sb = null;
@@ -115,13 +117,20 @@
     }
     catch (e) { } me = null; myId = null; }
     const R = (a, b) => Math.random() * (b - a) + a, cl = (v, a, b) => Math.max(a, Math.min(b, v)), D = Math.hypot;
+    // ---- seeded RNG (daily challenge) + in-place array compaction ----
+    function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+    const hashStr = s => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0; return h; };
+    const utcDate = () => new Date().toISOString().slice(0, 10);
+    let rngS = null, daily = false;
+    const rs = () => rngS ? rngS() : Math.random(), RS = (a, b) => rs() * (b - a) + a;
+    const compact = (a, f) => { let j = 0; for (let i = 0; i < a.length; i++) { const v = a[i]; if (f(v)) a[j++] = v; } a.length = j; return a; };
     const INK = '#14161f', PAP = '#f1e8d4', RED = '#e8452c', GLD = '#f0b429', TEA = '#2a9d8f', MUT = '#8d8a7f';
     let hi = 0, mute = false;
     try {
         hi = +localStorage.getItem('ll_hi') || 0;
     }
     catch (e) { }
-    const set = Object.assign({ sfx: 1, mus: .6, vib: 1, lay: 0, sens: 1, diff: 1, tut: 0 }, (() => { try {
+    const set = Object.assign({ sfx: 1, mus: .6, vib: 1, lay: 0, sens: 1, diff: 1, tut: 0, shk: (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) ? 0 : 1, low: 0, cb: 0, tel: 1 }, (() => { try {
         return JSON.parse(localStorage.getItem('ll_set') || '{}');
     }
     catch (e) {
@@ -194,7 +203,7 @@
     const skHTML = i => `<div style="color:var(--gold);margin-bottom:.6cqw">${SKINS[i].n} loadout</div>` + SKINS[i].sk.map((x, s) => `<div><b>${KEYN[s]} &middot; ${x.n}</b> &mdash; ${x.d}</div>`).join('');
     const bcol = c => c == 'rainbow' ? `hsl(${(time * 220) % 360},95%,65%)` : c;
     const BO = () => SPC(3).bo || [0];
-    const bgOnly = () => state == 'menu' || state == 'guide' || state == 'hangar' || state == 'board' || state == 'exit' || state == 'splash';
+    const bgOnly = () => state == 'menu' || state == 'guide' || state == 'hangar' || state == 'board' || state == 'rboard' || state == 'rdet' || state == 'avs' || state == 'inb' || state == 'exit' || state == 'splash';
     const KITE = [[0, -20], [12, 14], [0, 7], [-12, 14]], DRONE = [[0, 13], [12, -10], [0, -4], [-12, -10]], FIGH = [[0, 17], [17, 0], [0, -14], [-17, 0]], DIVE = [[0, 22], [8, -12], [0, -6], [-8, -12]], HEX = [...Array(6)].map((_, i) => [Math.cos(i * 1.047) * 23, Math.sin(i * 1.047) * 23]);
     const PL = document.createElement('canvas');
     PL.width = PL.height = 240;
@@ -215,11 +224,25 @@
     const keys = {};
     let gzW = { w: 0, s: 0 }, gzTot = 0, wl = [], lw = 1;
     let ptr = null, ptrId = -1, rk = 0, rb = 0, rt = 0, ev = null, evT = 40, rc = 0, slow = 0, trl = [], runMsg = '';
+    let beatT = 0, tokens = 2, wasG = false;
     const stars = [...Array(80)].map(() => ({ x: R(0, W), y: R(0, H), z: R(.3, 1.5) }));
     const mult = () => Math.min(5, 1 + (combo / 5 | 0));
     const tg = () => lamp ? { x: lamp.x, y: lamp.y } : P, aimAt = e => { const t = tg(); return Math.atan2(t.y - e.y, t.x - e.x); };
     const bs = () => (wave > 5 ? Math.min(330, 190 + (wave - 6) * 10) : 145 + wave * 8) * DF().bs;
+
+    const fireCd = () => wave > 5 ? Math.max(.7, 1.7 - (wave - 6) * .09) : wave > 3 ? 2.6 - (wave - 3) * .3 : 2.6;
+const killsNeeded = () => wave > 5 ? Math.min(10 + wave * 3, 16 + (wave - 5) * 4) : 6 + wave * 2;
+const dropRate = () => Math.max(.09, .17 - Math.max(0, wave - 3) * .02);
+function spawnGroup() {
+    const n = 3 + (rs() * 3 | 0), cx = RS(110, W - 110), vy = RS(90, 120), amp = RS(40, 70), v = rs() < .5;
+    for (let i = 0; i < n; i++) {
+        const o = i - (n - 1) / 2, x = cx + o * 40;
+        en.push({ k: 'drone', grp: 1, x, x0: x, y: -30 - (v ? Math.abs(o) * 22 : i * 26), r: 13,
+                  hp: 1, mhp: 1, vy, t: v ? 0 : i * .25, amp, sc: 100 });
+    }
+}
     function reset() {
+        rngS = daily ? mulberry32(hashStr(utcDate() + ':1')) : null;
         P = { x: W / 2, y: H - 110, r: 12, lives: DF().lives + STAT[skin][2] + Math.min(5, U(4) / 150 | 0), shield: U(9) ? 1 : 0, tier: 1, cool: 0, inv: 2 + Math.min(2, (U(9) / 100 | 0) * .25), bomb: 1 + Math.min(4, U(8) / 100 | 0), wc: 0, dsh: 0, mir: 0, sp: 0, sf: 0, ph: 0, ldx: 0, ldy: -1, did: 0, dvx: 0, dvy: 0, fx: { R: 0, X: 0, W: 0, M: 0, T: 0 } };
         bul = [];
         ebul = [];
@@ -256,10 +279,11 @@
         gzTot = 0;
         wl = [];
         lw = 1;
+        beatT = 0; tokens = 2; wasG = false;
         ann('Wave 1', FL[0]);
     }
     function ann(a, b) { bT = a; bS = b; banner = 2.2; }
-    function burst(x, y, n = 16, c = GLD, sp = 220) { for (let i = 0; i < n; i++) {
+    function burst(x, y, n = 16, c = GLD, sp = 220) { n = Math.ceil(n * (set.low ? .4 : 1)); for (let i = 0; i < n; i++) {
         const a = R(0, 6.28), s = R(30, sp);
         pt.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, l: R(.3, .8), m: .8, c, s: R(1.5, 3.5) });
     } }
@@ -298,13 +322,23 @@
         q.stroke();
         return c;
     }
-    function rock(x, y, r, vx) {
-        const p = [...Array(11)].map((_, i) => { const a = i / 11 * 6.28, q = R(.74, 1); return [Math.cos(a) * r * q, Math.sin(a) * r * q]; });
-        en.push({ k: 'rock', x, y, r, hp: r > 20 ? 5 : 2, mhp: 5, vy: R(60, 120), vx: vx ?? R(-45, 45), rot: R(0, 6), vr: R(-.9, .9), sc: r > 20 ? 90 : 50, p, sp: rockSprite(r, p) });
+        const ROCKC = {};
+    function rockShape(r) {
+        const sz = Math.max(10, Math.round(r / 3) * 3), v = Math.random() * 4 | 0, key = sz + ':' + v;
+        if (!ROCKC[key]) {
+            const p = [...Array(11)].map((_, i) => { const a = i / 11 * 6.28, q = R(.74, 1); return [Math.cos(a) * sz * q, Math.sin(a) * sz * q]; });
+            ROCKC[key] = { p, sp: rockSprite(sz, p) };
+        }
+        return ROCKC[key];
+    }
+    function rock(x, y, r, vx, det) {
+        const f = det ? RS : R, s = rockShape(r);
+        en.push({ k: 'rock', x, y, r, hp: r > 20 ? 5 : 2, mhp: 5, vy: f(60, 120), vx: vx ?? f(-45, 45), rot: f(0, 6), vr: f(-.9, .9), sc: r > 20 ? 90 : 50, p: s.p, sp: s.sp });
     }
     function spawn() {
-        const r = Math.random(), x = R(40, W - 40), w = wave, hd = w > 5, h = Math.max(0, w - 6), fh = hd ? 3 + (h / 4 | 0) : 2;
-        const q = Math.random();
+        const r = rs(), x = RS(40, W - 40), w = wave, hd = w > 5, h = Math.max(0, w - 6), fh = w >= 5 ? 3 + (h / 4 | 0) : 2;
+        const q = rs();
+        if (w >= 2 && q > .75) { spawnGroup(); return; }
         if (w >= 6 && q < .06) {
             en.push({ k: 'sniper', x, y: -30, r: 15, hp: 4, mhp: 4, t: 0, cd: 1.6, ch: 0, sc: 250 });
             return;
@@ -319,14 +353,14 @@
             en.push({ k: 'tank', x, y: -40, r: 23, hp: 8 + w, mhp: 8 + w, t: 0, cd: 1.5, sc: 300 });
         else if (hd && w >= 7 && r < .24 + Math.min(.1, h * .01))
             en.push({ k: 'diver', x, y: -30, r: 13, hp: 2, mhp: 2, t: 0, ph: 0, tx: x, sc: 200 });
-        else if (w >= 3 && r < (hd ? .5 : .12 + w * .03))
-            en.push({ k: 'fighter', x, y: -30, r: 16, hp: fh, mhp: fh, t: 0, cd: R(1, 2), sc: 150, dir: Math.random() < .5 ? -1 : 1 });
+        else if (w >= 3 && r < (hd ? Math.min(.5, .34 + h * .04) : .12 + w * .03 + Math.max(0, w - 4) * .04))
+            en.push({ k: 'fighter', x, y: -30, r: 16, hp: fh, mhp: fh, t: 0, cd: RS(1, 2), sc: 150, dir: rs() < .5 ? -1 : 1 });
         else if (w >= 4 && r > (hd ? .86 : .93))
             en.push({ k: 'mine', x, y: -30, r: 15, hp: 3, mhp: 3, t: 0, sc: 120 });
         else if (r < (hd ? .62 : .5))
-            rock(x, -30, hd ? R(16, 32) : R(14, 24));
+            rock(x, -30, hd ? RS(16, 32) : RS(14, 24), undefined, 1);
         else
-            en.push({ k: 'drone', x, x0: x, y: -30, r: 13, hp: hd && w >= 9 ? 2 : 1, mhp: 1, vy: hd ? Math.min(230, R(105, 140) + h * 8) : R(70, 100) + w * 4, t: R(0, 6), amp: R(40, 90), sc: 100 });
+            en.push({ k: 'drone', x, x0: x, y: -30, r: 13, hp: hd && w >= 9 ? 2 : 1, mhp: 1, vy: hd ? Math.min(230, RS(105, 140) + h * 8) : RS(70, 100) + w * 4, t: RS(0, 6), amp: RS(40, 90), sc: 100 });
     }
     function spawnBoss() { const tier = ((wave / 5 | 0) - 1) % 4, hp = Math.round((wave <= 5 ? 90 : 110 + (wave - 5) * 30) * DF().hp); boss = { k: 'boss', tier, x: W / 2, y: -90, r: 46, hp, mhp: hp, t: 0, cd: 1.5, ph: 0, sc: 2500 + wave * 250 }; en.push(boss); ann('Warning', BOSS[tier]); S.big(); }
     function fire() {
@@ -406,9 +440,9 @@
             return;
         }
         const ks = 'PPRXWMTSBH';
-        if (Math.random() < (e.k == 'tank' ? .55 : e.k == 'rock' ? .04 : wave > 5 ? .09 : .17) + (.25 * SAT(U(11), 250)))
+        if (Math.random() < (e.k == 'tank' ? .55 : e.k == 'rock' ? .04 : dropRate()) + (.25 * SAT(U(11), 250)))
             drop(e.x, e.y, ks[R(0, ks.length) | 0]);
-        if (!boss && kills >= (wave > 5 ? 10 + wave * 3 : 6 + wave * 2)) {
+        if (!boss && kills >= killsNeeded()) {
             kills = 0;
             if (wave % 5 == 0)
                 spawnBoss();
@@ -437,7 +471,7 @@
         const c = SPC(2), a = c.a, n = c.q; cdM = c.cd; P.md = c.dm;
         if (a == 0) P.mir = .7 + n * .2;
         else if (a == 1) { P.fx.T = 3 + n; ringFx(P.x, P.y, 200 * c.rd); flash = .15; }
-        else if (a == 2) { P.shield = 1; ebul = ebul.filter(b => D(b.x - P.x, b.y - P.y) > 110 * c.rd); ringFx(P.x, P.y, 110 * c.rd); }
+        else if (a == 2) { P.shield = 1; compact(ebul, b => D(b.x - P.x, b.y - P.y) > 110 * c.rd); ringFx(P.x, P.y, 110 * c.rd); }
         else if (a == 3) { P.shield = 1; for (const e of en) if (D(e.x - P.x, e.y - P.y) < 160 * c.rd + e.r) { e.hp -= 4 * c.dm; e.hit = .1; burst(e.x, e.y, 6, TEA, 140); } ringFx(P.x, P.y, 160 * c.rd); }
         else if (a == 4) { P.fx.W = Math.max(P.fx.W, 6 + n * 2); P.fx.R = Math.max(P.fx.R, 6 + n * 2); ringFx(P.x, P.y, 70); }
         else if (a == 5) { const k = Math.max(.1, .35 - n * .08); for (const b of ebul) { b.vx *= k; b.vy *= k; } ringFx(P.x, P.y, 240 * c.rd); flash = .1; }
@@ -464,7 +498,7 @@
         else if (a == 1) blast({ x: P.x, y: P.y - 10, n: 2, rd: c.rd, dm: c.dm });
         else if (a == 2) { const N = 8 + n * 4; for (let i = 0; i < N; i++) hb(c, P.x, P.y - 16, -1.5708 + (i - (N - 1) / 2) * .2); }
         else if (a == 3) { const N = 14 + n * 6; for (let i = 0; i < N; i++) hb(c, P.x, P.y, i * 6.283 / N); ringFx(P.x, P.y, 90 * c.rd); }
-        else if (a == 4) { const y = P.y - 120; ebul = ebul.filter(b => Math.abs(b.y - y) > 110 * c.rd); for (const e of en) if (Math.abs(e.y - y) < 110 * c.rd + e.r) { e.hp -= 5 * c.dm; e.hit = .1; } ringFx(P.x, y, 200 * c.rd); flash = .12; }
+        else if (a == 4) { const y = P.y - 120; compact(ebul, b => Math.abs(b.y - y) > 110 * c.rd); for (const e of en) if (Math.abs(e.y - y) < 110 * c.rd + e.r) { e.hp -= 5 * c.dm; e.hit = .1; } ringFx(P.x, y, 200 * c.rd); flash = .12; }
         else if (a == 5) { const N = 7 + n * 3; for (let i = 0; i < N; i++) pb(c, R(30, W - 30), R(0, 50), 1.5708, 520, 4, 6); shake = .2; }
         else if (a == 6) { const M = 3 + n; for (let k = 0; k < 4; k++) for (let i = 0; i < M; i++) hb(c, P.x, P.y, k * 1.5708 + (i - (M - 1) / 2) * .09, 2, 330 + i * 40); ringFx(P.x, P.y, 70); }
         else { P.fx.R = Math.max(P.fx.R, 7 + n); P.fx.X = Math.max(P.fx.X, 7 + n); ringFx(P.x, P.y, 80); }
@@ -485,7 +519,7 @@
                 }
             }
         }
-        ebul = ebul.filter(b => D(b.x - L.x, b.y - L.y) > r);
+        compact(ebul, b => D(b.x - L.x, b.y - L.y) > r);
         rings.push({ x: L.x, y: L.y, r: 10, m: r, l: .4 });
         burst(L.x, L.y, 50 + L.n, GLD, r * 2.2);
         flash = .25;
@@ -542,23 +576,23 @@
             p.y += p.vy * dt;
             p.l -= dt;
         }
-        pt = pt.filter(p => p.l > 0);
+        compact(pt, p => p.l > 0);
         for (const p of pops) {
             p.y -= 30 * dt;
             p.l -= dt;
         }
-        pops = pops.filter(p => p.l > 0);
+        compact(pops, p => p.l > 0);
         for (const q of rings) {
             q.r += (q.m - q.r) * Math.min(1, dt * 9);
             q.l -= dt;
         }
-        rings = rings.filter(q => q.l > 0);
+        compact(rings, q => q.l > 0);
         for (const q of ghosts)
             q.l -= dt;
-        ghosts = ghosts.filter(q => q.l > 0);
+        compact(ghosts, q => q.l > 0);
         for (const q of trl)
             q.l -= dt;
-        trl = trl.filter(q => q.l > 0);
+        compact(trl, q => q.l > 0);
         shake = Math.max(0, shake - dt * 1.5);
         flash = Math.max(0, flash - dt);
         banner = Math.max(0, banner - dt);
@@ -574,11 +608,14 @@
         if (wave !== lw) {
             wl.push({ wave: lw, score, t: +rt.toFixed(1) });
             lw = wave;
+            if (rngS) rngS = mulberry32(hashStr(utcDate() + ':' + wave));
         }
         const f = P.fx;
         for (const k in f)
             f[k] = Math.max(0, f[k] - dt);
         const sl = f.T > 0 ? .45 : 1, ed = dt * sl;
+        beatT += ed;
+if (beatT >= .6) { beatT -= .6; tokens = 2 + (wave / 4 | 0); }
         let dx = (keys.ArrowRight || keys.d || 0) - (keys.ArrowLeft || keys.a || 0), dy = (keys.ArrowDown || keys.s || 0) - (keys.ArrowUp || keys.w || 0);
         if (dx && dy) {
             dx *= .707;
@@ -623,7 +660,7 @@
         P.cool -= dt;
         P.inv = Math.max(0, P.inv - dt);
         trl.push({ x: P.x, y: P.y + 13, l: .4 });
-        if (Math.random() < .9)
+        if (Math.random() < (set.low ? .4 : .9))
             pt.push({ x: P.x + R(-4, 4), y: P.y + 16, vx: R(-14, 14), vy: R(70, 130), l: .35, m: .35, c: SKINS[skin].t, s: R(1.5, 3) });
         if (P.cool <= 0 && !(P.sp > 0)) {
             fire();
@@ -691,7 +728,10 @@
                 blast();
         }
         spT -= dt;
-        if (!boss && spT <= 0 && en.length < (wave > 5 ? 7 + (wave - 5) : 2 + wave)) {
+        const ga = en.some(e => e.grp);
+if (wasG && !ga) spT = Math.max(spT, 1.5);
+wasG = ga;
+if (!boss && !ga && spT <= 0 && en.length < (wave > 5 ? 7 + (wave - 5) : 2 + wave)) {
             const n0 = en.length;
             spawn();
             for (let i = n0; i < en.length; i++) {
@@ -720,7 +760,7 @@
             b.x += b.vx * dt;
             b.y += b.vy * dt;
         }
-        bul = bul.filter(b => b.y > -20 && b.y < H + 40 && b.x > -20 && b.x < W + 20);
+        compact(bul, b => b.y > -20 && b.y < H + 40 && b.x > -20 && b.x < W + 20);
         for (const b of ebul) {
             b.x += b.vx * ed;
             b.y += b.vy * ed;
@@ -749,7 +789,7 @@
                 }
             }
         }
-        ebul = ebul.filter(b => !b.dead && b.y > -20 && b.y < H + 20 && b.x > -20 && b.x < W + 20);
+        compact(ebul, b => !b.dead && b.y > -20 && b.y < H + 20 && b.x > -20 && b.x < W + 20);
         for (const e of en) {
             if (e.burn > 0) { e.burn -= dt; e.hp -= 2.2 * dt; if (Math.random() < .3) pt.push({ x: e.x + R(-8, 8), y: e.y + R(-8, 8), vx: 0, vy: -40, l: .3, m: .3, c: RED, s: 2 }); }
             if (e.fz > 0) e.fz -= dt;
@@ -780,10 +820,11 @@
                         e.y += 95 * ed;
                 }
                 e.cd -= ed;
-                if (e.cd <= 0 && e.y > 0) {
-                    es(e, an, bs());
-                    e.cd = wave > 5 ? Math.max(.55, 1.7 - (wave - 6) * .09) : 2.6;
-                }
+                if (e.cd <= 0 && e.y > 0 && tokens > 0 && ebul.length < 70) {
+    tokens--;
+    es(e, an, bs());
+    e.cd = fireCd();
+}
             }
             else if (e.k == 'tank') {
                 if (e.y < 100)
@@ -791,8 +832,9 @@
                 else
                     e.x += Math.sin(e.t) * 40 * ed;
                 e.cd -= ed;
-                if (e.cd <= 0) {
-                    es(e, Math.PI / 2, bs(), wave > 8 ? 5 : 3, .3);
+                if (e.cd <= 0 && tokens > 0 && ebul.length < 70) {
+    tokens--;
+    es(e, Math.PI / 2, bs(), wave > 8 ? 5 : 3, .3);
                     e.cd = Math.max(1.1, 2 - (wave - 6) * .06);
                 }
             }
@@ -805,15 +847,16 @@
                     e.y += 70 * ed;
                 else {
                     e.cd -= ed;
-                    if (e.cd < .9)
-                        e.ch = 1;
-                    if (e.cd <= 0) {
-                        const a = aimAt(e);
-                        ebul.push({ x: e.x, y: e.y + 10, vx: Math.cos(a) * 430, vy: Math.sin(a) * 430, r: 6 });
-                        e.cd = 2.4;
-                        e.ch = 0;
-                        S.hit();
-                    }
+                   if (e.cd < .9) e.ch = 1;
+if (e.cd < .25 && e.la == null) e.la = aimAt(e);
+if (e.cd <= 0) {
+    const a = e.la ?? aimAt(e);
+    ebul.push({ x: e.x, y: e.y + 10, vx: Math.cos(a) * 430, vy: Math.sin(a) * 430, r: 6 });
+    e.cd = 2.4;
+    e.ch = 0;
+    e.la = null;
+    S.hit();
+}
                     if (e.t > 11)
                         e.y += 80 * ed;
                 }
@@ -905,13 +948,13 @@
                 hurt();
             }
         }
-        bul = bul.filter(b => !b.dead);
+        compact(bul, b => !b.dead);
         for (const e of en.slice())
             if (e.hp <= 0) {
                 en.splice(en.indexOf(e), 1);
                 kill(e);
             }
-        en = en.filter(e => e.y < H + 60 && e.x > -90 && e.x < W + 90);
+        compact(en, e => e.y < H + 60 && e.x > -90 && e.x < W + 90);
         for (const p of pw) {
             p.t += dt;
             p.y += 70 * dt;
@@ -928,7 +971,7 @@
                 take(p.k);
             }
         }
-        pw = pw.filter(p => !p.dead && p.y < H + 20);
+        compact(pw, p => !p.dead && p.y < H + 20);
     }
     function dbg() { try {
         const r = { score, wave, secs: Math.round(rt), perMin: Math.round(score / Math.max(1, rt / 60)), maxChain: maxC, kills: rk, bosses: rb, grazePts: gzTot, perWave: wl };
@@ -953,13 +996,15 @@
             catch (e) { }
         }
         const nu = SKINS.filter(k => k.u > old && k.u <= hi).map(k => k.n);
+        if (nu.length) notify('Rocket unlocked', nu.join(', '));
         $('o1').textContent = score.toLocaleString();
         $('o2').textContent = wave;
         $('o3').textContent = '\u00D7' + maxC;
         $('o4').textContent = hi.toLocaleString();
         runMsg = endRun();
         show('over');
-        post(nu, score, wave);
+        (daily ? postDaily : post)(nu, score, wave);
+        sendTelemetry();
     }
     // ---- draw ----
     function poly(x, y, pts, fill, off, rot = 0, s = 1) {
@@ -982,7 +1027,27 @@
     function dia(x, y, r, c) { g.fillStyle = c; g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y); g.closePath(); g.fill(); }
     const SIL = [[0, -27], [7, -6], [27, 19], [24, 23], [6, 15], [0, 14], [-6, 15], [-24, 23], [-27, 19], [-7, -6]];
     function P2(pts, c) { g.fillStyle = c; g.beginPath(); pts.forEach((v, i) => g[i ? 'lineTo' : 'moveTo'](v[0], v[1])); g.closePath(); g.fill(); }
-    function glow(x, y, r, c, a = .5) { const q = g.createRadialGradient(x, y, 0, x, y, r); q.addColorStop(0, c); q.addColorStop(1, 'rgba(20,22,31,0)'); g.globalAlpha = a; g.fillStyle = q; g.beginPath(); g.arc(x, y, r, 0, 6.28); g.fill(); g.globalAlpha = 1; }
+        const GLC = new Map();
+    function glow(x, y, r, c, a = .5) {
+        if (set.low) return;
+        if (c.charCodeAt(0) === 104) c = c.replace(/hsl\(([\d.]+)/, (m, h) => 'hsl(' + Math.round(h / 12) * 12);
+        const rr = Math.max(4, Math.round(r / 3) * 3), key = c + '|' + rr;
+        let s = GLC.get(key);
+        if (!s) {
+            if (GLC.size > 240) GLC.clear();
+            s = document.createElement('canvas');
+            s.width = s.height = rr * 2;
+            const q = s.getContext('2d'), gr = q.createRadialGradient(rr, rr, 0, rr, rr, rr);
+            gr.addColorStop(0, c);
+            gr.addColorStop(1, 'rgba(20,22,31,0)');
+            q.fillStyle = gr;
+            q.fillRect(0, 0, rr * 2, rr * 2);
+            GLC.set(key, s);
+        }
+        g.globalAlpha = a;
+        g.drawImage(s, x - rr, y - rr, rr * 2, rr * 2);
+        g.globalAlpha = 1;
+    }
     function craft(x, y, s, fl, L, Dk, A, Cn, fw, fa, fc) {
         g.save();
         g.translate(x, y);
@@ -1101,7 +1166,7 @@
         else if (t == 6) P.fx.W = Math.max(P.fx.W, 5);
         else if (t == 7) P.fx.M = Math.max(P.fx.M, 6);
         else if (t == 8) { rc += 15; score += 300; }
-        else if (t == 9) ebul = ebul.filter(b => D(b.x - P.x, b.y - P.y) > 140 * c.rd);
+        else if (t == 9) compact(ebul, b => D(b.x - P.x, b.y - P.y) > 140 * c.rd);
         else if (t == 10) P.fx.T = Math.max(P.fx.T, 2.5);
         else graze = Math.min(29, graze + 10);
         pops.push({ x: P.x, y: P.y - 30, s: TW[t][0].toUpperCase(), l: 1, c: GLD });
@@ -1170,11 +1235,11 @@
         g.restore();
     }
     function sniperArt(e, h) {
-        const a = aimAt(e);
+        const a = e.la ?? aimAt(e);
         if (e.ch) {
             g.save();
             g.strokeStyle = RED;
-            g.globalAlpha = .4 + .5 * Math.sin(time * 40);
+            g.globalAlpha = e.la != null ? 1 : .4 + .5 * Math.sin(time * 40);
             g.lineWidth = 1.5;
             g.setLineDash([4, 6]);
             g.beginPath();
@@ -1535,12 +1600,12 @@
         g.restore();
     }
     function draw() {
-        g.setTransform(2, 0, 0, 2, 0, 0);
+        g.setTransform(RES, 0, 0, RES, 0, 0);
         g.fillStyle = INK;
         g.fillRect(0, 0, W, H);
         g.save();
         if (shake > 0)
-            g.translate(R(-1, 1) * shake * 10, R(-1, 1) * shake * 10);
+            g.translate(R(-1, 1) * shake * 10 * set.shk, R(-1, 1) * shake * 10 * set.shk);
         g.globalAlpha = .2;
         g.drawImage(PL, 260, ((time * 6) % (H + 300)) - 260);
         g.globalAlpha = 1;
@@ -1653,13 +1718,13 @@
                         g.fillRect(b.x - 1.8, b.y - 8, 3.6, 15);
                 }
                 for (const b of ebul) {
-                    g.strokeStyle = RED;
-                    g.lineWidth = 2.6;
+                    g.strokeStyle = set.cb ? '#ffffff' : RED;
+                    g.lineWidth = set.cb ? 3.6 : 2.6;
                     g.beginPath();
                     g.arc(b.x, b.y, b.r, 0, 6.28);
                     g.stroke();
-                    g.fillStyle = PAP;
-                    g.fillRect(b.x - 1, b.y - 1, 2, 2);
+                    g.fillStyle = set.cb ? '#ffe14d' : PAP;
+                    g.fillRect(b.x - (set.cb ? 2.5 : 1), b.y - (set.cb ? 2.5 : 1), set.cb ? 5 : 2, set.cb ? 5 : 2);
                 }
                 for (const q of ghosts) {
                     g.globalAlpha = q.l * 2;
@@ -1682,8 +1747,17 @@
                 if (state == 'play' || state == 'pause') {
                     const bl = P.inv > 0 && Math.floor(P.inv * 14) % 2;
                     if (!bl) {
-                        ship(P.x, P.y, 1.1, SKINS[skin], 1.1, 1);
-                    }
+    ship(P.x, P.y, 1.1, SKINS[skin], 1.1, 1);
+    if (ebul.length > 8) {
+        g.fillStyle = RED;
+        g.beginPath();
+        g.arc(P.x, P.y, 3, 0, 6.28);
+        g.fill();
+        g.strokeStyle = PAP;
+        g.lineWidth = 1;
+        g.stroke();
+    }
+}
                     if (P.fx.W > 0)
                         for (let i = 0; i < 2; i++) {
                             const a = time * 3 + i * Math.PI;
@@ -1733,7 +1807,7 @@
         }
         if (flash > 0) {
             g.fillStyle = PAP;
-            g.globalAlpha = flash;
+            g.globalAlpha = flash * Math.max(.25, set.shk);
             g.fillRect(0, 0, W, H);
             g.globalAlpha = 1;
         }
@@ -1829,7 +1903,7 @@
         st.style.width = w + 'px';
         st.style.height = (w * r) + 'px';
         if (H != oh) {
-            C.height = H * 2;
+            C.height = H * RES;
             stars.forEach(s => s.y *= H / oh);
             if (P)
                 P.y = cl(P.y, 70, H - 92);
@@ -1840,13 +1914,15 @@
     if (window.visualViewport)
         visualViewport.addEventListener('resize', fit);
     // ---- ui / input ----
-    const show = s => { state = s; st.dataset.s = s; $('hi').textContent = String(hi).padStart(6, '0'); $('mcn').textContent = pg.coins.toLocaleString() + ' coins'; };
+    const show = s => { state = s; st.dataset.s = s; $('hi').textContent = String(hi).padStart(6, '0'); $('mcn').textContent = pg.coins.toLocaleString() + ' coins'; updInb(); if (s == 'menu') { inboxTick(); loadNotes(); } };
     const launch = () => { reset(); ptr = null; show('play'); };
     const start = () => { if (!set.tut)
         showTut('play');
     else
         launch(); };
-    $('go').onclick = start;
+    $('go').onclick = () => { daily = false; start(); };
+    $('gdy').onclick = () => { daily = true; start(); };
+    $('shr').onclick = () => shareRun();
     $('ag').onclick = start;
     $('gd').onclick = () => { $('skl').innerHTML = skHTML(skin); show('guide'); };
     $('bk').onclick = () => show('menu');
@@ -1912,7 +1988,7 @@
         ptr = null; };
     C.addEventListener('pointerup', pup);
     C.addEventListener('pointercancel', pup);
-    let skin = 0, pvS = 0, cs = 'PILOT', tab = 'g', lbDb = null, myId = null, rows = [], reloadBoard = () => { };
+    let skin = 0, pvS = 0, cs = 'PILOT', tab = 'g', lbDb = null, myId = null, rows = [], drows = [], profBack = 'board', reloadBoard = () => { };
     try {
         skin = +localStorage.getItem('ll_skin') || 0;
         cs = localStorage.getItem('ll_cs') || 'PILOT';
@@ -1965,9 +2041,11 @@
     } };
     function addLocal(sc, wv) { try {
         const a = local();
-        a.push({ name: cs, score: sc, wave: wv });
+        a.push({ name: cs, score: sc, wave: wv, skin });
+        noteRocket(sc);
         a.sort((x, y) => y.score - x.score);
-        localStorage.setItem('ll_runs', JSON.stringify(a.slice(0, 10)));
+        const seen = new Set(), best = a.filter(r => { const k = String(r.name).toUpperCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+localStorage.setItem('ll_runs', JSON.stringify(best.slice(0, 10)));
     }
     catch (e) { } }
 
@@ -2004,7 +2082,7 @@
         const pg0 = p.pg || {};
         const ship = SKINS[Number(p.skin ?? 0)] || SKINS[0];
 
-        $('vpav').style.background = ship.L;
+        fillAv($('vpav'), pg0.av, '16cqw', { bg: ship.L, ch: String(p.name || player.name || 'P').charAt(0).toUpperCase() });
         $('vpdesc').textContent = data
             ? 'Pilot statistics · Last Light'
             : 'Only leaderboard statistics are available for this pilot.';
@@ -2046,10 +2124,11 @@ function formatPlayerName(name) {
 }
 
     function renderBoard() {
-        const useG = tab == 'g' && lbDb, list = useG ? rows : local(), box = $('rows');
+        const useG = tab == 'g' && lbDb, seenL = new Set(), list = useG ? rows : tab == 'd' ? drows : local().filter(r => { const k = String(r.name).toUpperCase(); if (seenL.has(k)) return false; seenL.add(k); return true; }), box = $('rows');
         box.textContent = '';
         $('tg').className = 'tb' + (tab == 'g' ? ' on' : '');
         $('tl').className = 'tb' + (tab == 'l' ? ' on' : '');
+        $('td').className = 'tb' + (tab == 'd' ? ' on' : '');
         if (!list.length) {
             const d = document.createElement('div');
             d.className = 'em';
@@ -2065,9 +2144,10 @@ function formatPlayerName(name) {
     formatPlayerName(r.name),
     'W' + String(r.wave || 1).padStart(2, '0'),
     (r.score || 0).toLocaleString()
-].forEach(t => {
+].forEach((t, ci) => {
         const sp = document.createElement('span');
-        sp.textContent = t;
+        if (ci === 1) sp.append(avatarFor(r, '6cqw'), document.createTextNode(t));
+        else sp.textContent = t;
         d.appendChild(sp);
     });
 
@@ -2077,19 +2157,91 @@ function formatPlayerName(name) {
         d.setAttribute('role', 'button');
         d.setAttribute('tabindex', '0');
 
-        d.addEventListener('click', () => openPlayerProfile(r, i + 1));
+        d.addEventListener('click', () => (profBack = 'board', openPlayerProfile(r, i + 1)));
 
         d.addEventListener('keydown', e => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                openPlayerProfile(r, i + 1);
+                (profBack = 'board', openPlayerProfile(r, i + 1));
             }
         });
     }
 
     box.appendChild(d);
 });
-        $('bn').textContent = tab == 'g' ? (lbDb ? 'Live \u00B7 best run per pilot' : 'Offline \u00B7 open this page signed in for the shared board') : 'Stored on this device';
+        if (tab != 'l') ensureAvatars(list.slice(0, 11).map(r => r.id), () => { if (state == 'board') renderBoard(); });
+        $('bn').textContent = tab == 'd' ? 'Today\u2019s seed \u00B7 resets at 00:00 UTC' : tab == 'g' ? (lbDb ? 'Live \u00B7 best run per pilot' : 'Offline \u00B7 open this page signed in for the shared board') : 'Best run per pilot \u00B7 stored on this device';
+    }
+    async function postDaily(nu, sc, wv) {
+        const pre = (nu.length ? 'Rocket unlocked: ' + nu.join(', ') + '. ' : '') + runMsg, say = m => { $('on').textContent = pre + m; };
+        if (sc <= 0) return say('');
+        noteRocket(sc);
+        if (!sb || !me) return say('Daily run finished. Sign in to join the daily board.');
+        try {
+            pushRocket(sc, wv);
+            const { error } = await sb.rpc('submit_daily', { p_score: sc, p_wave: wv, p_skin: skin, p_secs: Math.round(rt) });
+            if (error) throw error;
+            say('Daily score sent.');
+            loadDaily();
+        }
+        catch (e) { say('Daily board error: ' + ((e && e.message) || e)); }
+    }
+    async function loadDaily() {
+        if (!sb) return;
+        try {
+            const { data } = await sb.from('daily_scores').select('user_id,name,score,wave').eq('day', utcDate()).order('score', { ascending: false }).limit(10);
+            drows = (data || []).map(r => ({ ...r, id: r.user_id }));
+            if (state == 'board') renderBoard();
+        }
+        catch (e) { }
+    }
+    function sendTelemetry() {
+        if (!sb || !set.tel || score <= 0 || rt < 5) return;
+        try { sb.from('run_telemetry').insert({ wave, secs: Math.round(rt), score, skin, diff: set.diff | 0, daily }).then(() => { }, () => { }); }
+        catch (e) { }
+    }
+    async function shareRun() {
+        const c = document.createElement('canvas'), w = 1080, h = 1620, q = c.getContext('2d'), K = SKINS[skin];
+        c.width = w;
+        c.height = h;
+        q.fillStyle = INK;
+        q.fillRect(0, 0, w, h);
+        const k = Math.max(w / C.width, h / C.height);
+        q.drawImage(C, (w - C.width * k) / 2, (h - C.height * k) / 2, C.width * k, C.height * k);
+        q.fillStyle = 'rgba(20,22,31,.78)';
+        q.fillRect(0, 0, w, h);
+        q.fillStyle = K.L;
+        q.fillRect(80, 300, 8, 360);
+        q.textAlign = 'left';
+        q.fillStyle = PAP;
+        q.font = '900 150px Fraunces,Georgia,serif';
+        q.fillText('Last', 120, 400);
+        q.fillText('Light', 120, 540);
+        q.fillStyle = GLD;
+        q.font = '600 40px "IBM Plex Mono",monospace';
+        q.fillText(daily ? 'DAILY ' + utcDate() : 'ENDLESS RUN', 120, 620);
+        q.fillStyle = PAP;
+        q.font = '900 190px Fraunces,Georgia,serif';
+        q.fillText(score.toLocaleString(), 120, 900);
+        q.fillStyle = '#cfc7b3';
+        q.font = '600 46px "IBM Plex Mono",monospace';
+        q.fillText('Wave ' + wave + '   Chain x' + maxC, 120, 990);
+        q.fillText('Rocket: ' + K.n, 120, 1060);
+        q.fillStyle = MUT;
+        q.font = '500 34px "IBM Plex Mono",monospace';
+        q.fillText(location.host || 'Last Light', 120, 1500);
+        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+        if (!blob) return;
+        const f = new File([blob], 'last-light.png', { type: 'image/png' }), msg = 'I scored ' + score.toLocaleString() + ' on Last Light (wave ' + wave + ').';
+        try {
+            if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], text: msg }); return; }
+        }
+        catch (e) { if (e && e.name === 'AbortError') return; }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'last-light.png';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     }
     async function post(nu, sc, wv) {
         const pre = (nu.length ? 'Rocket unlocked: ' + nu.join(', ') + '. ' : '') + runMsg, say = m => { $('on').textContent = pre + m; };
@@ -2103,6 +2255,7 @@ function formatPlayerName(name) {
             return;
         }
         try {
+            pushRocket(sc, wv);
             const { error } = await sb.rpc('submit_score', { p_score: sc, p_wave: wv, p_skin: skin, p_name: cs, p_secs: Math.round(rt) });
             if (error)
                 throw error;
@@ -2123,6 +2276,7 @@ function formatPlayerName(name) {
                     const { data: mine } = await sb.from('scores').select('user_id,name,score,wave').eq('user_id', me.id).maybeSingle();
                     if (mine) rows.push({ ...mine, id: mine.user_id, far: 1 });
                 }
+                if (me) { const ix = rows.findIndex(r => r.id === me.id && !r.far); if (ix >= 0) { const rk = ix + 1; if (pg.rk && pg.rk !== rk) notify(rk < pg.rk ? 'Rank up' : 'Outranked', 'You are now #' + rk + ' on the global leaderboard.'); if (pg.rk !== rk) { pg.rk = rk; savePg(); } } }
                 if (state == 'board')
                     renderBoard();
             }
@@ -2141,12 +2295,177 @@ function formatPlayerName(name) {
     $('bb').onclick = () => show('menu');
 
     $('vpb').onclick = () => {
+    if (profBack == 'rdet') { show('rdet'); renderRocketDetail(); return; }
     show('board');
     renderBoard();
 };
 
+    // ---- rocket leaderboard (hero-style): top pilot + my best, one row per rocket ----
+    const mk = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+    const myRB = () => { try { return JSON.parse(localStorage.getItem('ll_rbest') || '{}'); } catch (e) { return {}; } };
+    const noteRocket = sc => { try { const o = myRB(); if (sc > (o[skin] || 0)) { o[skin] = sc; localStorage.setItem('ll_rbest', JSON.stringify(o)); } } catch (e) { } };
+    const topPerRocket = list => {
+        const m = new Map();
+        (list || []).forEach(r => {
+            if (r.skin == null) return;
+            const k = Number(r.skin), sc = Number(r.score || 0);
+            if (!SKINS[k] || sc <= 0) return;
+            const o = m.get(k);
+            if (!o || sc > o.score) m.set(k, { ...r, score: sc, skin: k });
+        });
+        return m;
+    };
+    let tops = new Map(), allRows = [], rdSkin = 0;
+    function renderRockets() {
+        const box = $('rrows'), mine = myRB();
+        local().forEach(r => { if (r.skin != null && Number(r.score) > (mine[r.skin] || 0)) mine[r.skin] = Number(r.score); });
+        if (myId) allRows.forEach(r => { if (r.id === myId && r.skin != null && Number(r.score) > (mine[r.skin] || 0)) mine[r.skin] = Number(r.score); });
+        const list = SKINS.map((k, i) => ({ i, k, top: tops.get(i), my: mine[i] || 0 }));
+        list.sort((x, y) => (y.top ? y.top.score : -1) - (x.top ? x.top.score : -1) || x.i - y.i);
+        box.textContent = '';
+        const head = mk('div', 'rr rhd');
+        head.append(mk('span', '', 'Rocket'), mk('span', '', 'Top 1 pilot'), mk('span', '', 'My best'));
+        box.appendChild(head);
+        list.forEach(o => {
+            const d = mk('div', 'rr' + (o.top && o.top.id && o.top.id === myId ? ' me' : '') + (unl(o.i) ? '' : ' lk'));
+            d.style.setProperty('--c', o.k.L);
+            d.style.setProperty('--a', o.k.A);
+            const h = mk('div', 'rh');
+            h.append(mk('i', 'rsw'), mk('b', '', o.k.n));
+            const p = mk('div', 'rp');
+            if (o.top) p.append(mk('span', '', formatPlayerName(o.top.name)), mk('em', '', o.top.score.toLocaleString()));
+            else p.append(mk('span', 'rn', 'No pilot yet'));
+            d.append(h, p, mk('div', 'rm', o.my ? o.my.toLocaleString() : '\u2014'));
+            d.style.cursor = 'pointer';
+            d.setAttribute('role', 'button');
+            d.setAttribute('tabindex', '0');
+            d.onclick = () => openRocket(o.i);
+            d.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRocket(o.i); } };
+            box.appendChild(d);
+        });
+        $('rbn').textContent = rbErr ? 'Rocket database not set up. Run database.sql in Supabase.' : 'Best run per rocket \u00B7 ' + (sb ? 'live' : 'this device');
+    }
+    let rbErr = '', rbSynced = false, rbSub = false;
+    async function pushRocket(sc, wv) {
+        if (!sb || !me || !(sc > 0)) return;
+        try {
+            const { error } = await sb.rpc('submit_rocket_score', { p_skin: skin, p_score: Math.floor(sc), p_wave: wv | 0, p_name: cs });
+            if (error) throw error;
+            rbErr = '';
+        }
+        catch (e) { rbErr = (e && e.message) || String(e); }
+    }
+    async function syncLocalRockets() {
+        if (rbSynced || !sb || !me) return;
+        rbSynced = true;
+        let fail = false;
+        const send = async (k, sc, wv) => {
+            try {
+                const { error } = await sb.rpc('submit_rocket_score', { p_skin: +k, p_score: Math.floor(sc), p_wave: wv | 0, p_name: cs });
+                if (error) { fail = true; rbErr = error.message || 'rocket_scores unavailable'; return false; }
+                return true;
+            }
+            catch (e) { fail = true; return false; }
+        };
+        // 1) rocket bests tracked on this device
+        const o = myRB(), runs = local();
+        for (const k of Object.keys(o)) {
+            const hit = runs.find(r => Number(r.skin) === +k && Number(r.score) === Number(o[k]));
+            await send(k, o[k], hit && hit.wave ? hit.wave : 0);
+        }
+        // 2) runs flown before rockets were tracked: the global board row remembers the rocket of the best run
+        try {
+            const q = await sb.from('scores').select('skin,score,wave').eq('user_id', me.id).maybeSingle();
+            if (q.data && q.data.skin != null && Number(q.data.score) > 0 && SKINS[Number(q.data.skin)]) await send(q.data.skin, q.data.score, q.data.wave);
+        }
+        catch (e) { }
+        // 3) still no rocket on record: file the best score under the equipped rocket (one time)
+        try {
+            const have = await sb.from('rocket_scores').select('skin', { count: 'exact', head: true }).eq('user_id', me.id);
+            if (!have.error && !have.count && hi > 0) await send(skin, hi, 0);
+        }
+        catch (e) { }
+        if (fail) rbSynced = false;
+    }
+    async function loadRockets() {
+        const draw = () => { if (state == 'rboard') renderRockets(); if (state == 'rdet') renderRocketDetail(); };
+        allRows = local();
+        tops = topPerRocket(allRows);
+        draw();
+        if (!sb) return;
+        try {
+            await syncLocalRockets();
+            const r0 = await sb.from('rocket_scores').select('user_id,name,score,wave,skin').order('score', { ascending: false }).limit(2000);
+            if (!r0.error) {
+                rbErr = '';
+                allRows = (r0.data || []).map(r => ({ ...r, id: r.user_id }));
+                tops = topPerRocket(allRows);
+                if (!rbSub) {
+                    rbSub = true;
+                    try { sb.channel('rscores').on('postgres_changes', { event: '*', schema: 'public', table: 'rocket_scores' }, () => { if (state == 'rboard' || state == 'rdet') loadRockets(); }).subscribe(); }
+                    catch (e) { }
+                }
+                return draw();
+            }
+            rbErr = r0.error.message || 'rocket_scores unavailable';
+            // fallback while the table is missing: legacy scores/profiles data
+            const r1 = await sb.from('scores').select('user_id,name,score,wave,skin').order('score', { ascending: false }).limit(1000);
+            let rws = r1.error ? [] : (r1.data || []).map(r => ({ ...r, id: r.user_id })), m = topPerRocket(rws);
+            if (!m.size) {
+                const r2 = await sb.from('profiles').select('id,name,hi,skin').order('hi', { ascending: false }).limit(1000);
+                if (!r2.error) { rws = (r2.data || []).map(r => ({ id: r.id, name: r.name, score: r.hi, skin: r.skin })); m = topPerRocket(rws); }
+            }
+            if (m.size) { tops = m; allRows = rws; }
+            draw();
+        }
+        catch (e) { }
+    }
+    function renderRocketDetail() {
+        const K = SKINS[rdSkin], box = $('rdrows'), meBox = $('rdme');
+        $('rdsw').style.setProperty('--c', K.L);
+        $('rdsw').style.setProperty('--a', K.A);
+        $('rdn').textContent = K.n;
+        $('rdd').textContent = K.d || '';
+        const seen = new Set(), list = allRows.filter(r => r.skin != null && Number(r.skin) === rdSkin && Number(r.score) > 0)
+            .sort((a, b) => b.score - a.score)
+            .filter(r => { const k = r.id || String(r.name).toUpperCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+            .slice(0, 50);
+        box.textContent = '';
+        if (!list.length) { const d = mk('div', 'em', 'No pilots on this rocket yet. Be the first lamp.'); box.appendChild(d); }
+        const rowEl = (r, rank, isMe) => {
+            const d = mk('div', 'rk' + (rank > 0 && rank <= 3 ? ' g' + rank : '') + (isMe ? ' me' : ''));
+            const nm = mk('div', 'nm'), tx = mk('div', 'tx', formatPlayerName(r.name));
+            if (r.wave) tx.appendChild(mk('small', '', 'Wave ' + r.wave));
+            nm.append(avatarFor(r, '7cqw'), tx);
+            d.append(mk('div', 'n', rank > 0 ? String(rank) : '\u2014'), nm, mk('div', 'sc', Number(r.score || 0).toLocaleString()), mk('div', 'go', '\u276F'));
+            return d;
+        };
+        list.forEach((r, i) => {
+            const d = rowEl(r, i + 1, !!(r.id && r.id === myId));
+            if (r.id && sb) {
+                d.setAttribute('role', 'button');
+                d.setAttribute('tabindex', '0');
+                const open = () => { profBack = 'rdet'; openPlayerProfile(r, i + 1); };
+                d.onclick = open;
+                d.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
+            }
+            else d.style.cursor = 'default';
+            box.appendChild(d);
+        });
+        ensureAvatars(list.map(r => r.id), () => { if (state == 'rdet') renderRocketDetail(); });
+        const idx = myId ? list.findIndex(r => r.id === myId) : -1, mine = myRB()[rdSkin] || 0;
+        meBox.textContent = '';
+        if (idx >= 0) meBox.appendChild(rowEl(list[idx], idx + 1, true));
+        else meBox.appendChild(rowEl({ id: myId, name: cs, score: mine }, 0, true));
+        meBox.appendChild(mk('div', 'sk', idx >= 0 ? 'You are on this rocket\u2019s leaderboard.' : 'Fly the ' + K.n + ' with a signed-in account to enter this leaderboard.'));
+    }
+    function openRocket(i) { rdSkin = i; renderRocketDetail(); show('rdet'); }
+    $('rdb').onclick = () => show('rboard');
+    $('rlb').onclick = () => { renderRockets(); show('rboard'); loadRockets(); };
+    $('rbb').onclick = () => show('menu');
     $('tg').onclick = () => { tab = 'g'; renderBoard(); };
     $('tl').onclick = () => { tab = 'l'; renderBoard(); };
+    $('td').onclick = () => { tab = 'd'; renderBoard(); loadDaily(); };
     // ---- accounts: Supabase Auth (callsign -> pseudo-email) + local cache; progress synced to the cloud ----
     let acc = null, mode = 'in', pg = { coins: 0, owned: [], up: [0, 0, 0, 0], daily: null, ach: [] };
     const ACC = () => { try {
@@ -2215,6 +2534,8 @@ function formatPlayerName(name) {
             return say('Cloud accounts are not configured. Add your Supabase URL and key.');
         if (!/^[A-Za-z0-9_ -]{3,12}$/.test(nm))
             return say('Callsign: 3-12 letters, numbers, space, _ or -.');
+        if (/(admin|moderator|support|system|staff|official)/i.test(nm))
+            return say('That callsign is reserved.');
         if (pw.length < 6)
             return say('Password needs at least 6 characters.');
         try {
@@ -2276,10 +2597,227 @@ function formatPlayerName(name) {
         catch (e) { }
         cloudPush();
     }
+    // ---- avatars, borders ----
+    const AVS = [
+        { n: 'Rocket', c: '#e8452c', p: '<path d="M12 2c3 3 4.5 7 3.5 11L12 16.5 8.5 13C7.5 9 9 5 12 2z"/><path d="M8.5 13 5 16l2.5.5M15.5 13 19 16l-2.5.5M12 8.5h.01"/>' },
+        { n: 'Lantern', c: '#f0b429', p: '<path d="M9 3h6M8 5h8l1 3v8l-1 3H8l-1-3V8z"/><path d="M12 9v6"/>' },
+        { n: 'Star', c: '#f1e8d4', p: '<polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"/>' },
+        { n: 'Moon', c: '#7dd3fc', p: '<path d="M20 14a8 8 0 1 1-10-10 6.5 6.5 0 0 0 10 10z"/>' },
+        { n: 'Sun', c: '#f0b429', p: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>' },
+        { n: 'Comet', c: '#2a9d8f', p: '<circle cx="17" cy="7" r="3"/><path d="M14.5 9.5 4 20M12 8 3 14M16 12l-6 9"/>' },
+        { n: 'Planet', c: '#f472b6', p: '<circle cx="12" cy="12" r="5"/><path d="M3 15c-1-2 4-6 10-8s9-2 8 0M21 9c1 2-4 6-10 8"/>' },
+        { n: 'Flame', c: '#ffb703', p: '<path d="M12 2c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z"/>' },
+        { n: 'Bolt', c: '#5eead4', p: '<polygon points="13 2 4 14 11 14 10 22 20 9 13 9"/>' },
+        { n: 'Crown', c: '#c4b5fd', p: '<path d="M3 18h18l1-10-5 4-5-7-5 7-5-4z"/>' },
+        { n: 'Eye', c: '#86efac', p: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>' },
+        { n: 'Ghost', c: '#cfe9f7', p: '<path d="M5 21V11a7 7 0 0 1 14 0v10l-3-2-2 2-2-2-2 2-2-2z"/><path d="M9.5 11h.01M14.5 11h.01"/>' }
+    ];
+    const BORDERS = [
+        { n: 'Paper', bg: '#f1e8d4', u: () => 1, d: '' },
+        { n: 'Ember', bg: '#e8452c', u: () => 1, d: '' },
+        { n: 'Tide', bg: '#2a9d8f', u: () => 1, d: '' },
+        { n: 'Gold', bg: 'linear-gradient(135deg,#f0b429,#fff1b8,#c98a0a)', u: s => s.bestWave >= 10, d: 'Reach wave 10' },
+        { n: 'Aurora', bg: 'linear-gradient(135deg,#2a9d8f,#7dd3fc,#a78bfa)', gl: '0 0 2.4cqw #2a9d8f99', u: s => s.bestWave >= 20, d: 'Reach wave 20' },
+        { n: 'Inferno', bg: 'linear-gradient(135deg,#e8452c,#f0b429)', gl: '0 0 3cqw #e8452cb0', u: s => s.bestScore >= 50000, d: 'Score 50,000 in one run' },
+        { n: 'Slate', bg: 'linear-gradient(135deg,#8d8a7f,#f1e8d4,#8d8a7f)', u: s => s.bosses >= 10, d: 'Defeat 10 bosses' },
+        { n: 'Veteran', bg: 'conic-gradient(#f0b429,#e8452c,#f0b429,#e8452c,#f0b429)', w: '1.1cqw', u: s => s.runs >= 100, d: 'Fly 100 runs' },
+        { n: 'Prism', bg: 'conic-gradient(#f472b6,#f0b429,#86efac,#7dd3fc,#a78bfa,#f472b6)', gl: '0 0 3cqw #a78bfaa0', w: '1.2cqw', u: () => OW() >= 12, d: 'Own 12 rockets' }
+    ];
+    const PERSON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>';
+    const IMG_OK = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/;
+    function fillAv(el, av, sz, o) {
+        av = av || {};
+        o = o || {};
+        const B = BORDERS[Number(av.b)] || BORDERS[0], K = AVS[Number(av.i)];
+        el.className = 'av';
+        el.style.cssText = '';
+        el.style.setProperty('--sz', sz);
+        el.style.setProperty('--bg', B.bg);
+        el.style.setProperty('--gl', B.gl || 'none');
+        el.style.setProperty('--bw', B.w || '.9cqw');
+        el.textContent = '';
+        const i = document.createElement('div');
+        i.className = 'avi';
+        if (typeof av.img == 'string' && av.img.length < 60000 && IMG_OK.test(av.img))
+            i.style.backgroundImage = 'url("' + av.img + '")';
+        else if (K) {
+            i.style.background = K.c;
+            i.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + K.p + '</svg>';
+        }
+        else {
+            i.style.background = o.bg || 'var(--mute)';
+            if (o.ch) i.textContent = o.ch;
+            else i.innerHTML = PERSON;
+        }
+        el.appendChild(i);
+    }
+    const avMap = new Map(), avPend = new Set();
+    function avatarFor(r, sz) {
+        const a = document.createElement('div'), mineRow = r.id && r.id === myId;
+        fillAv(a, mineRow ? pg.av : avMap.get(r.id), sz, { bg: 'var(--mute)', ch: String(r.name || 'P').charAt(0).toUpperCase() });
+        return a;
+    }
+    function ensureAvatars(ids, cb) {
+        if (!sb) return;
+        const need = [...new Set(ids)].filter(i => i && i !== myId && !avMap.has(i) && !avPend.has(i)).slice(0, 60);
+        if (!need.length) return;
+        need.forEach(i => avPend.add(i));
+        sb.from('profiles').select('id,av:pg->av').in('id', need).then(({ data }) => {
+            need.forEach(i => { avPend.delete(i); avMap.set(i, null); });
+            (data || []).forEach(r => avMap.set(r.id, r.av || null));
+            if (cb) cb();
+        }, () => { need.forEach(i => avPend.delete(i)); });
+    }
+    function renderAvEd(msg) {
+        const av = pg.av || (pg.av = {}), s = getSt(), cur = Number(av.b) || 0;
+        fillAv($('avp'), av, '30cqw');
+        const g = $('avg'), b = $('bdg');
+        g.textContent = '';
+        b.textContent = '';
+        AVS.forEach((k, i) => {
+            const t = mk('button', 'avt' + (!av.img && Number(av.i) === i && av.i != null ? ' on' : ''));
+            t.type = 'button';
+            t.title = k.n;
+            const a = mk('div');
+            fillAv(a, { i, b: cur }, '11cqw');
+            t.appendChild(a);
+            t.onclick = () => { pg.av = { ...pg.av, i, img: null }; savePg(); renderAvEd(); };
+            g.appendChild(t);
+        });
+        BORDERS.forEach((B, j) => {
+            const ok = B.u(s), t = mk('button', 'avt' + (cur === j ? ' on' : '') + (ok ? '' : ' lk'));
+            t.type = 'button';
+            t.title = B.n;
+            const a = mk('div');
+            fillAv(a, { ...av, b: j }, '11cqw', { bg: SKINS[skin].L });
+            t.appendChild(a);
+            t.onclick = () => {
+                if (!ok) return renderAvEd('Locked: ' + B.d + '.');
+                pg.av = { ...pg.av, b: j };
+                savePg();
+                renderAvEd();
+            };
+            b.appendChild(t);
+        });
+        $('avr').style.display = av.img ? 'flex' : 'none';
+        $('bdn').textContent = msg || ('Border: ' + BORDERS[cur].n + '. Earn more borders by playing.');
+    }
+    $('pe').onclick = $('pav').onclick = () => { renderAvEd(); show('avs'); };
+    $('avk').onclick = () => { renderProf(); show('prof'); };
+    $('avu').onclick = () => $('avf').click();
+    $('avr').onclick = () => { pg.av = { ...pg.av, img: null }; savePg(); renderAvEd(); };
+    $('avf').onchange = e => {
+        const f = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!f) return;
+        if (!/^image\//.test(f.type) || f.size > 8e6) return renderAvEd('Choose an image under 8 MB.');
+        const url = URL.createObjectURL(f), im = new Image();
+        im.onload = () => {
+            try {
+                const z = 96, c = document.createElement('canvas'), q = c.getContext('2d'), m = Math.min(im.width, im.height);
+                c.width = c.height = z;
+                q.drawImage(im, (im.width - m) / 2, (im.height - m) / 2, m, m, 0, 0, z, z);
+                const d = c.toDataURL('image/jpeg', .78);
+                pg.av = { ...pg.av, img: d };
+                savePg();
+                renderAvEd('Photo set.');
+            }
+            catch (x) { renderAvEd('Could not use that image.'); }
+            URL.revokeObjectURL(url);
+        };
+        im.onerror = () => { URL.revokeObjectURL(url); renderAvEd('Could not read that image.'); };
+        im.src = url;
+    };
+    // ---- notifications: inbox + toast (stored in the notifications table when signed in) ----
+    var ntDb = null, ntCache = [], ntAt = 0;
+    let toastT = 0;
+    const ago = t => { const m = Math.max(0, (Date.now() - t) / 60000 | 0); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? (m / 60 | 0) + ' h ago' : (m / 1440 | 0) + ' d ago'; };
+    function toast(t, m) {
+        const e = $('toast');
+        e.querySelector('b').textContent = t;
+        e.querySelector('span').textContent = m;
+        e.classList.add('on');
+        clearTimeout(toastT);
+        toastT = setTimeout(() => e.classList.remove('on'), 3800);
+    }
+    function notes() { return (ntDb && me) ? ntCache : (pg.nt || []); }
+    function updInb() {
+        const n = notes().filter(x => x.u).length;
+        $('minbn').textContent = n ? n + ' new' : '\u276F';
+    }
+    async function loadNotes(force) {
+        if (!sb || !me) { updInb(); return; }
+        if (!force && Date.now() - ntAt < 15000) return;
+        ntAt = Date.now();
+        try {
+            const { data, error } = await sb.from('notifications').select('id,title,body,is_unread,created_at').eq('user_id', me.id).order('created_at', { ascending: false }).limit(40);
+            if (error) throw error;
+            ntDb = true;
+            ntCache = (data || []).map(r => ({ id: r.id, t: r.title, m: r.body, ts: Date.parse(r.created_at), u: r.is_unread ? 1 : 0 }));
+        }
+        catch (e) { ntDb = false; }
+        updInb();
+        if (state == 'inb') renderInb();
+    }
+    async function notify(t, m) {
+        toast(t, m);
+        try {
+            if (sb && me && ntDb !== false) {
+                ntCache.unshift({ t, m, ts: Date.now(), u: 1 });
+                if (ntDb) updInb();
+                const { error } = await sb.from('notifications').insert({ user_id: me.id, title: t, body: m });
+                if (!error) return;
+                ntDb = false;
+                ntCache.shift();
+            }
+            pg.nt = pg.nt || [];
+            pg.nt.unshift({ t, m, ts: Date.now(), u: 1 });
+            if (pg.nt.length > 40) pg.nt.length = 40;
+            savePg();
+            updInb();
+        }
+        catch (e) { }
+    }
+    function inboxTick() {
+        if (!pg.nv) { pg.nv = 1; pg.nd = dayKey(); notify('Welcome, pilot', 'Missions and awards live under Progress. New: rocket leaderboard, avatars and borders.'); }
+        else if (pg.nd !== dayKey()) { pg.nd = dayKey(); notify('Daily missions ready', 'Fresh missions and a new daily challenge are waiting.'); }
+    }
+    function renderInb() {
+        const box = $('inbl'), l = notes();
+        box.textContent = '';
+        if (!l.length) box.appendChild(mk('div', 'em', 'No notifications yet.'));
+        l.forEach(n => {
+            const d = mk('div', 'mi' + (n.u ? ' nw' : '')), b = mk('b', '', n.t);
+            d.append(b, document.createElement('br'), document.createTextNode(n.m), document.createElement('br'), mk('small', '', ago(n.ts)));
+            box.appendChild(d);
+        });
+        $('inbx').style.display = l.length ? 'flex' : 'none';
+    }
+    async function openInb() {
+        show('inb');
+        renderInb();
+        $('toast').classList.remove('on');
+        await loadNotes(true);
+        const l = notes();
+        if (!l.some(x => x.u)) return;
+        l.forEach(x => { x.u = 0; });
+        if (ntDb && me) { try { await sb.from('notifications').update({ is_unread: false }).eq('user_id', me.id).eq('is_unread', true); } catch (e) { } }
+        else savePg();
+        updInb();
+    }
+    $('minb').onclick = openInb;
+    $('toast').onclick = openInb;
+    $('inbx').onclick = async () => {
+        if (ntDb && me) { try { await sb.from('notifications').delete().eq('user_id', me.id); } catch (e) { } ntCache = []; }
+        else { pg.nt = []; savePg(); }
+        renderInb();
+        updInb();
+    };
+    $('inbk').onclick = () => show('menu');
     function renderProf() {
         const s = getSt(), o = !!acc, t = x => x >= 3600 ? Math.floor(x / 3600) + 'h ' + Math.floor(x % 3600 / 60) + 'm' : Math.floor(x / 60) + 'm ' + Math.floor(x % 60) + 's';
         $('pn').textContent = o ? formatPlayerName(cs) : 'Guest';
-        $('pav').style.background = o ? SKINS[skin].L : 'var(--mute)';
+        fillAv($('pav'), pg.av, '16cqw', { bg: o ? SKINS[skin].L : 'var(--mute)' });
         $('pd').textContent = o ? 'Signed in. Stats are saved to your cloud account.' : 'Guest profile. Stats are saved on this device only. Create an account to keep them under your callsign.';
         const rows = [['Best score', hi.toLocaleString()], ['Best wave', s.bestWave || 0], ['Best chain', '\u00D7' + s.bestChain], ['Runs flown', s.runs], ['Enemies downed', s.kills.toLocaleString()], ['Bosses felled', s.bosses], ['Total score', s.total.toLocaleString()], ['Time flown', t(s.time)], ['Rocket', SKINS[skin].n], ['Coins', pg.coins.toLocaleString()]];
         $('ps').innerHTML = rows.map(r => `<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join('');
@@ -2353,7 +2891,7 @@ function formatPlayerName(name) {
     AWX('u2', 'Engineer', 'Buy 1,000 upgrade levels', () => [UT(), 1000], 600);
     AWX('u3', 'Fully loaded', 'Max every upgrade (14,000 levels)', () => [UT(), 14000], 2000);
     AWX('g1', 'Savings', 'Hold 25,000 coins at once', () => [pg.coins, 25000], 600);
-    function dayKey() { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+    function dayKey() { const d = new Date(); return d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1) + '-' + d.getUTCDate(); }
     function mkDaily() {
         const k = dayKey();
         let h = 0;
@@ -2395,10 +2933,11 @@ function formatPlayerName(name) {
                 m.p = m.n;
                 c0 += m.r;
                 msg += 'Mission complete +' + m.r + '. ';
+                notify('Mission complete', 'Daily mission done. +' + m.r + ' coins');
             }
         }
         const s = getSt();
-        ACHS.filter(a => !pg.ach.includes(a.id) && a.f(s)).forEach(a => { pg.ach.push(a.id); c0 += (a.r || AW); msg += '\u2605 Award: ' + a.n + ' +' + (a.r || AW) + '. '; });
+        ACHS.filter(a => !pg.ach.includes(a.id) && a.f(s)).forEach(a => { pg.ach.push(a.id); c0 += (a.r || AW); notify('Award earned', a.n + ' +' + (a.r || AW) + ' coins'); msg += '\u2605 Award: ' + a.n + ' +' + (a.r || AW) + '. '; });
         c0 = Math.round(c0 * (1 + 3 * SAT(U(7), 250)));
         pg.coins += c0;
         savePg();
@@ -2461,13 +3000,21 @@ function formatPlayerName(name) {
             localStorage.setItem('ll_skin', pvS);
     }
     catch (e) { } renderHangar(); };
-    function renderSet() { $('sv').value = set.sfx * 100; $('mv').value = set.mus * 100; $('ss').value = set.sens * 100; $('sb1').firstChild.textContent = 'Vibration: ' + (set.vib ? 'on ' : 'off '); $('sb2').firstChild.textContent = 'Skill buttons: ' + ['Center', 'Left', 'Right'][set.lay] + ' '; $('sb3').firstChild.textContent = 'Difficulty: ' + DF().n + ' '; }
+    function renderSet() { $('sv').value = set.sfx * 100; $('mv').value = set.mus * 100; $('ss').value = set.sens * 100; $('sb1').firstChild.textContent = 'Vibration: ' + (set.vib ? 'on ' : 'off '); $('sb2').firstChild.textContent = 'Skill buttons: ' + ['Center', 'Left', 'Right'][set.lay] + ' '; $('sb3').firstChild.textContent = 'Difficulty: ' + DF().n + ' ';
+        $('sb5').firstChild.textContent = 'Screen shake: ' + (set.shk >= 1 ? 'Full' : set.shk > 0 ? 'Reduced' : 'Off') + ' ';
+        $('sb6').firstChild.textContent = 'Effects: ' + (set.low ? 'Low' : 'High') + ' ';
+        $('sb7').firstChild.textContent = 'Enemy bullets: ' + (set.cb ? 'High contrast' : 'Standard') + ' ';
+        $('sb8').firstChild.textContent = 'Anonymous stats: ' + (set.tel ? 'on' : 'off') + ' '; }
     $('sv').oninput = e => { set.sfx = e.target.value / 100; saveSet(); };
     $('mv').oninput = e => { set.mus = e.target.value / 100; saveSet(); };
     $('ss').oninput = e => { set.sens = e.target.value / 100; saveSet(); };
     $('sb1').onclick = () => { set.vib = set.vib ? 0 : 1; saveSet(); renderSet(); vib(40); };
     $('sb2').onclick = () => { set.lay = (set.lay + 1) % 3; saveSet(); renderSet(); };
     $('sb3').onclick = () => { set.diff = (set.diff + 1) % 3; saveSet(); renderSet(); };
+    $('sb5').onclick = () => { set.shk = set.shk >= 1 ? 0 : set.shk > 0 ? 1 : .4; saveSet(); renderSet(); };
+    $('sb6').onclick = () => { set.low = set.low ? 0 : 1; saveSet(); renderSet(); applyRes(); };
+    $('sb7').onclick = () => { set.cb = set.cb ? 0 : 1; saveSet(); renderSet(); };
+    $('sb8').onclick = () => { set.tel = set.tel ? 0 : 1; saveSet(); renderSet(); };
     $('sb4').onclick = () => showTut('set');
     $('mset').onclick = () => { setFrom = 'menu'; renderSet(); show('sett'); };
     $('pst').onclick = () => { setFrom = 'pause'; renderSet(); show('sett'); };
@@ -2491,10 +3038,10 @@ function formatPlayerName(name) {
         ev.s -= dt;
         if (ev.s <= 0) {
             if (ev.k == 'storm') {
-                rock(R(30, W - 30), -30, R(10, 20));
-                const r = en[en.length - 1];
-                r.vy = R(180, 280);
-                r.vx = R(-30, 30);
+                rock(40 + ((ev.i = (ev.i | 0) + 1) * 3 % 7) * (W - 80) / 6, -30, 16);
+const r = en[en.length - 1];
+r.vy = 230;
+r.vx = 0;
                 ev.s = .3;
             }
             else {
@@ -2542,6 +3089,8 @@ function formatPlayerName(name) {
     $('splash').onclick = endSplash;
     addEventListener('keydown', endSplash);
     setTimeout(endSplash, 2600);
+    applyRes();
+    if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { }));
     fit();
     reset();
     show('splash');
